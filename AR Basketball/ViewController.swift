@@ -71,7 +71,7 @@ extension ViewController {
         // Place the hoop in correct position
         hoopNode.simdTransform = result.worldTransform
         hoopNode.eulerAngles.x -= .pi / 2
-        hoopNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: hoopNode))
+        hoopNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: hoopNode, options: [SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron]))
         
         // Remove
         sceneView.scene.rootNode.enumerateChildNodes { node, _ in
@@ -88,7 +88,7 @@ extension ViewController {
     func createBasketball() {
         guard let frame = sceneView.session.currentFrame else { return }
         
-        let ball = SCNNode(geometry: SCNSphere(radius: 0.2426))
+        let ball = SCNNode(geometry: SCNSphere(radius: 0.1213))
         ball.geometry?.firstMaterial?.diffuse.contents = UIImage(named: "basketball")
         
         let cameraTransform = frame.camera.transform
@@ -143,4 +143,9 @@ extension ViewController: ARSCNViewDelegate {
         node.addChildNode(planeNode)
         planeCounter += 1
     }
+    
+    // TODO: implement function for deleting basketballs
+//    func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+//        <#code#>
+//    }
 }
