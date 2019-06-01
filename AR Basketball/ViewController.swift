@@ -13,10 +13,16 @@ import ARKit
 class ViewController: UIViewController {
 
     @IBOutlet var sceneView: ARSCNView!
+    @IBOutlet weak var pointsLabel: UILabel!
     
     var planeCounter = 0
     
     var isHoopPlaced = false
+    
+    var nodesContactedWithTopChecker = [SCNNode]()
+    
+    var pointsCount = 0
+    var ballsThrown = 0
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,6 +32,9 @@ class ViewController: UIViewController {
         
         // Show statistics such as fps and timing information
         sceneView.showsStatistics = true
+        
+        // Set the contact's delegate
+        sceneView.scene.physicsWorld.contactDelegate = self
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -73,14 +82,30 @@ extension ViewController {
         hoopNode.eulerAngles.x -= .pi / 2
         hoopNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: hoopNode, options: [SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron]))
         
-        // Remove
+        // Remove the wall
         sceneView.scene.rootNode.enumerateChildNodes { node, _ in
             if node.name == "Wall" {
                 node.removeFromParentNode()
             }
         }
         
-        // Add the hop to the scene
+        // Add top contact checker
+        guard let topNode = hoopScene?.rootNode.childNode(withName: "topContactChecker", recursively: false) else { return }
+        topNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: topNode))
+        topNode.name = "topContactChecker"
+        topNode.physicsBody?.categoryBitMask = 0b0010
+        topNode.physicsBody?.collisionBitMask = 0b0000
+        hoopNode.addChildNode(topNode)
+        
+        // Add bottom contact checker
+        guard let bottomNode = hoopScene?.rootNode.childNode(withName: "bottomContactChecker", recursively: false) else { return }
+        bottomNode.name = "bottomContactChecker"
+        bottomNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(node: bottomNode))
+        bottomNode.physicsBody?.categoryBitMask = 0b0010
+        bottomNode.physicsBody?.collisionBitMask = 0b0000
+        hoopNode.addChildNode(bottomNode)
+        
+        // Add the hoop to the scene
         sceneView.scene.rootNode.addChildNode(hoopNode)
         isHoopPlaced = true
     }
@@ -94,9 +119,12 @@ extension ViewController {
         let cameraTransform = frame.camera.transform
         ball.simdTransform = cameraTransform
         
-        let physicsBody = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(node: ball))
-        ball.physicsBody = physicsBody
-        let power = Float(10)
+        ball.physicsBody = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(node: ball))
+        ball.physicsBody?.categoryBitMask = 0b0001
+        ball.physicsBody?.contactTestBitMask = 0b0010
+        ball.name = "Ball"
+        
+        let power = Float(7)
         let vector = cameraTransform.columns.2
         let x = -vector.x * power
         let y = -vector.y * power
@@ -105,6 +133,15 @@ extension ViewController {
         ball.physicsBody?.applyForce(force, asImpulse: true)
         
         sceneView.scene.rootNode.addChildNode(ball)
+        
+        ballsThrown += 1
+        updInfo()
+    }
+
+    func updInfo() {
+        DispatchQueue.main.async {
+            self.pointsLabel.text = String(self.pointsCount) + " / " + String(self.ballsThrown)
+        }
     }
 }
 
@@ -148,4 +185,23 @@ extension ViewController: ARSCNViewDelegate {
 //    func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
 //        <#code#>
 //    }
+}
+
+// MARK: - SCNPhysicsContactDelegate
+extension ViewController: SCNPhysicsContactDelegate {
+    func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
+        let nodeA = contact.nodeA
+        let nodeB = contact.nodeB
+
+        if nodeA.name == "topContactChecker" {
+            nodesContactedWithTopChecker.append(nodeB)
+        } else if nodeA.name == "bottomContactChecker" && nodeB.name == "Ball" {
+            nodeB.name = "ballAfterContact"
+            
+            if nodesContactedWithTopChecker.contains(nodeB) {
+                pointsCount += 1
+                updInfo()
+            }
+        }
+    }
 }
